@@ -5,7 +5,6 @@
 
 <%@ page import="java.util.*" %>
 <%@ page import="org.springframework.security.authentication.BadCredentialsException" %>
-
 <html xmlns:og="http://ogp.me/ns#">
 	<head>
 		<title>Cloud Portal - open source web portal for any cloud service</title>
@@ -36,7 +35,6 @@ $("#lnkSignUp").click(function(){
 	$("#divNoAcc").hide();
 	$("#divForgotPwd").hide();
 	$("#divSignUp").show();
-	$("#captchaImg").attr("src", "/jcaptcha.jsp");
 });
 
 $("#lnkSignIn1").click(function(){
@@ -87,8 +85,5 @@ $("#btnSignUp").click( function(){
 	).complete(function() {  });
 });
 
-$("#lnkNewCaptcha").click(function(){
-	$("#captchaImg").attr("src", "/jcaptcha.jsp");
-});
 
 </script>

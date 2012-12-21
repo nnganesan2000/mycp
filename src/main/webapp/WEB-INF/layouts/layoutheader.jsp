@@ -3,6 +3,9 @@
 <%@ taglib uri="http://tiles.apache.org/tags-tiles" prefix="tiles" %>
 <%@ page import="java.util.*" %>
 <%@ page import="org.springframework.security.authentication.BadCredentialsException" %>
+<%@ page import="net.tanesha.recaptcha.ReCaptcha" %>
+<%@ page import="net.tanesha.recaptcha.ReCaptchaFactory" %>
+<%@ page import="in.mycp.common.Constant" %>
 	
 	<script type="text/javascript" src="/dwr/engine.js"></script>
 	<script type="text/javascript" src="/dwr/util.js"></script>
@@ -99,6 +102,8 @@
 	<div id="divSignUp" class="content  with-foot">
 		<form novalidate="novalidate" id="signupform" method="post" name="signupform" action="/cloud-portal/signup">
 			<input id="id" name="id" type="hidden">
+			<%	ReCaptcha c = ReCaptchaFactory.newReCaptcha(Constant.RECAPTCHA_PUBLIC_KEY, Constant.RECAPTCHA_PVT_KEY, false); %>
+
 			<table border="0">
 				  <tr>
 					<td>Name :
@@ -117,13 +122,7 @@
 					<input name="organization" id="organization" maxlength="40" size="30" class="required" type="text"></td>
 				  </tr>
 				  <tr>
-					<td>Enter text in the box 
-					<input id="captchaResp" name="captchaResp" maxlength="5" size="30" class="required" type="text">
-					</td>
-				  </tr>
-				  <tr>
-					<td><img id="captchaImg" style="border:1px solid grey;" />
-					<!-- <a href="#" id="lnkNewCaptcha" title="New Captcha"><img align="top" alt="" src="/images/sync.png"></a> --></td>
+					<td>Captcha : <%out.print(c.createRecaptchaHtml(null, null));%></td>
 				  </tr>
 					<tr>
 					    <td style="width: 100%; " colspan="2"><label id="lblSignUpErrMsg"></label></td>

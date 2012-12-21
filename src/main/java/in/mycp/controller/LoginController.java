@@ -20,6 +20,7 @@
  */
 package in.mycp.controller;
 
+import in.mycp.common.Constant;
 import in.mycp.domain.Company;
 import in.mycp.domain.Department;
 import in.mycp.domain.Infra;
@@ -28,6 +29,7 @@ import in.mycp.domain.ProductCatalog;
 import in.mycp.domain.Project;
 import in.mycp.domain.Role;
 import in.mycp.domain.User;
+import in.mycp.persistence.MycpPersistenceServiceImpl;
 import in.mycp.remote.ProductService;
 import in.mycp.remote.RealmService;
 import in.mycp.service.WorkflowImpl4Jbpm;
@@ -58,7 +60,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
-
+import net.tanesha.recaptcha.ReCaptchaImpl;
+import net.tanesha.recaptcha.ReCaptchaResponse;
 /**
  * 
  * @author Charudath Doddanakatte
@@ -86,6 +89,7 @@ public class LoginController {
 	 @Autowired
 	 private RealmService realmService;
 	 
+	 @Autowired  MycpPersistenceServiceImpl mycpPersistenceService;	 
 	@RequestMapping(produces = "text/html")
 	public String main(HttpServletRequest req, HttpServletResponse resp) {
 		logger.info("login "+req.getQueryString()+" {}{}{} "+req.getRequestURL()+" {}{}{} "+req.getRemoteAddr());
@@ -130,7 +134,8 @@ public class LoginController {
 			String email = req.getParameter("email");
 			String password = req.getParameter("password");
 			String organization = req.getParameter("organization");
-			String captchaResp = req.getParameter("captchaResp");
+			
+			String remoteAddr = req.getRemoteAddr();
 			
 			if (StringUtils.isBlank(name)) {
             	return "<font style=\"color: red;\"> Name cannot be empty</font>";
@@ -152,8 +157,12 @@ public class LoginController {
             
             try {
                 HttpSession session = req.getSession();
-                String check = (String) session.getAttribute("captcha");
-                if (!captchaResp.equalsIgnoreCase(check)) {
+    			ReCaptchaImpl reCaptcha = new ReCaptchaImpl();
+    			reCaptcha.setPrivateKey(Constant.RECAPTCHA_PVT_KEY);
+    			String challenge = req.getParameter("recaptcha_challenge_field");
+    			String uresponse = req.getParameter("recaptcha_response_field");
+    			ReCaptchaResponse reCaptchaResponse = reCaptcha.checkAnswer(remoteAddr, challenge, uresponse);
+    			if (!reCaptchaResponse.isValid()) {
                 	return "<font style=\"color: red;\">Captcha phrase does not match</font>";
                 }
             } catch (Exception e) {
@@ -175,57 +184,9 @@ public class LoginController {
 			String email = req.getParameter("email");
 			String password = req.getParameter("password");
 			String organization = req.getParameter("organization");
+	        //Moved the code of inserting values into tables to MycpSignupService.SignUp to make it transactional and called that method below.
+            User user=mycpPersistenceService.signup(req);            
 	            
-            User user = new User();
-	            user.setFirstName(name);
-	            user.setEmail(email);
-	            user.setActive(true);
-	            user.setRole(Role.findRolesByNameEquals(Commons.ROLE.ROLE_MANAGER + "").getSingleResult());
-	            user.setRegistereddate(new Date());
-	            user.setPassword(passwordEncoder.encodePassword(password, email));
-            Company c = new Company();
-	            c.setName(organization);
-	            c.setCurrency(Commons.CURRENCY_DEFAULT);
-	            c = c.merge();
-            Department d = new Department();
-	            d.setCompany(c);
-	            d.setName("Dept - " + c.getName());
-	            d = d.merge();
-            Project p = new Project();
-	            p.setDepartment(d);
-	            p.setName("Proj @ " + d.getName());
-	            p = p.merge();
-	            
-	            if(user.getProjects() == null){
-	            	user.setProjects(new HashSet<Project>());
-	            }
-            user.getProjects().add(p);
-            user.setDepartment(d);
-            user = user.merge();
-            
-            if(p.getUsers() == null){
-            	p.setUsers(new HashSet<User>());
-            }
-            
-            p.getUsers().add(user);
-            p.merge();
-            
-            if(Commons.EDITION_ENABLED==Commons.HOSTED_EDITION_ENABLED){
-	            Infra infra = new Infra();
-		            infra.setName(c.getName() + " Euca Setup");
-		            infra.setAccessId("change it");
-		            infra.setSecretKey("change it");
-		            infra.setServer("change it");
-		            infra.setCompany(c);
-		            infra.setDetails("");
-		            infra.setPort(8773);
-		            infra.setResourcePrefix("/services/Eucalyptus");
-		            infra.setSignatureVersion(1);
-		            infra.setZone("");
-		            infra.setInfraType(InfraType.findInfraType(Commons.INFRA_TYPE_EUCA));
-		            infra = infra.merge();
-	            createAllProducts(infra);
-            }
             //send signup notification to the user
             MailDetailsDTO mailDetailsDTO = new MailDetailsDTO();
 			mailDetailsDTO.setTemplateName("SignupMailTemplate");
@@ -285,70 +246,6 @@ public class LoginController {
 	    		return false;
 	    }
 	
-    public void createAllProducts(Infra i) {
-        ProductCatalog pc = new ProductCatalog();
-	        pc.setInfra(i);
-	        pc.setCurrency(i.getCompany().getCurrency());
-	        pc.setName(Commons.ProductType.ComputeInstance + " @ " + i.getName());
-	        pc.setPrice(10);
-	        pc.setProductType(Commons.ProductType.ComputeInstance.getName());
-	        //pc.merge();
-	        productService.saveOrUpdate(pc);
-        pc = new ProductCatalog();
-	        pc.setId(0);
-	        pc.setInfra(i);
-	        pc.setCurrency(i.getCompany().getCurrency());
-	        pc.setName(Commons.ProductType.IpAddress + " @ " + i.getName());
-	        pc.setPrice(10);
-	        pc.setProductType(Commons.ProductType.IpAddress.getName());
-	      //pc.merge();
-	        productService.saveOrUpdate(pc);
-        pc = new ProductCatalog();
-	        pc.setId(0);
-	        pc.setInfra(i);
-	        pc.setCurrency(i.getCompany().getCurrency());
-	        pc.setName(Commons.ProductType.KeyPair + " @ " + i.getName());
-	        pc.setPrice(10);
-	        pc.setProductType(Commons.ProductType.KeyPair.getName());
-	      //pc.merge();
-	        productService.saveOrUpdate(pc);
-        pc = new ProductCatalog();
-	        pc.setId(0);
-	        pc.setInfra(i);
-	        pc.setCurrency(i.getCompany().getCurrency());
-	        pc.setName(Commons.ProductType.SecurityGroup + " @ " + i.getName());
-	        pc.setPrice(10);
-	        pc.setProductType(Commons.ProductType.SecurityGroup.getName());
-	      //pc.merge();
-	        productService.saveOrUpdate(pc);
-        pc = new ProductCatalog();
-	        pc.setId(0);
-	        pc.setInfra(i);
-	        pc.setCurrency(i.getCompany().getCurrency());
-	        pc.setName(Commons.ProductType.Volume + " @ " + i.getName());
-	        pc.setPrice(10);
-	        pc.setProductType(Commons.ProductType.Volume.getName());
-	      //pc.merge();
-	        productService.saveOrUpdate(pc);
-        pc = new ProductCatalog();
-	        pc.setId(0);
-	        pc.setInfra(i);
-	        pc.setCurrency(i.getCompany().getCurrency());
-	        pc.setName(Commons.ProductType.VolumeSnapshot + " @ " + i.getName());
-	        pc.setPrice(10);
-	        pc.setProductType(Commons.ProductType.VolumeSnapshot.getName());
-	      //pc.merge();
-	        productService.saveOrUpdate(pc);
-        pc = new ProductCatalog();
-	        pc.setId(0);
-	        pc.setInfra(i);
-	        pc.setCurrency(i.getCompany().getCurrency());
-	        pc.setName(Commons.ProductType.ComputeImage + " @ " + i.getName());
-	        pc.setPrice(10);
-	        pc.setProductType(Commons.ProductType.ComputeImage.getName());
-	      //pc.merge();
-	        productService.saveOrUpdate(pc);
-    }
    
     public void sendMessage(String mailFrom, String subject, String mailTo, String message) {
         org.springframework.mail.SimpleMailMessage mailMessage = new org.springframework.mail.SimpleMailMessage();
